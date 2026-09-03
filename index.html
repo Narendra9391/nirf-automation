@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NIRF Automation</title>
+<style>
+body{font-family:Arial;margin:0;background:#f4f7fb;color:#182238}header{background:#173b7a;color:#fff;padding:22px 7%}main{max-width:1050px;margin:28px auto;padding:0 18px}.card{background:#fff;border:1px solid #e2e7ef;border-radius:14px;padding:22px;margin:18px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.drop{display:block;border:2px dashed #b8c3d5;border-radius:12px;padding:30px;text-align:center;cursor:pointer}.drop.drag{border-style:solid}.drop input{display:none}select,button{padding:12px;border-radius:9px;border:1px solid #ccd5e4}select{width:100%;margin:10px 0}button{background:#173b7a;color:#fff;font-weight:bold;width:100%;cursor:pointer}button:disabled{opacity:.5}.secondary{margin-top:10px;background:#fff;color:#173b7a}.rulegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rule{background:#f5f8fd;padding:14px;border-radius:10px}.files{font-size:13px;color:#536177;margin-top:10px;white-space:pre-line}.ok{color:#176b35}.err{color:#a02222}@media(max-width:700px){.grid,.rulegrid{grid-template-columns:1fr}}
+</style></head>
+<body><header><h1>NIRF PDF → Excel Automation</h1><div>v23 • Up to 100 PDFs → One Excel • Engineering / Pharmacy / Management / Overall</div></header>
+<main>
+<div class="card"><h2>1. Select NIRF Category</h2>
+<select id="cat"><option>Engineering</option><option>Pharmacy</option><option>Management</option><option>Overall</option></select>
+<p>Upload the Excel format for the selected category. The backend reads the template headings and merged parent headings.</p></div>
+<div class="grid"><div class="card"><h3>Excel Format</h3><label class="drop">📊<br>Choose Excel Template<input id="xlsx" type="file" accept=".xlsx,.xlsm"></label><div id="xn" class="files">No file selected</div></div>
+<div class="card"><h3>Institution NIRF PDFs</h3><label id="pdfdrop" class="drop">📄<br><b>Choose up to 100 PDFs</b><br><small>You can select 100 PDFs at once, click again to add more, or drag and drop them here. All results go into one Excel file.</small><input id="pdfs" type="file" accept=".pdf" multiple></label><div id="pn" class="files">No files selected</div><button id="clearPdfs" type="button" class="secondary">Clear PDF List</button></div></div>
+<div class="card"><h3>Calculation Rules</h3><div class="rulegrid"><div class="rule"><b>Median Salary heading</b><br>(Year 1 + Year 2 + Year 3) ÷ 3</div><div class="rule"><b>CAP / OP EXP</b><br>Add all 3-year component values, then ÷ 3</div><div class="rule"><b>Sponsored / Consultancy</b><br>Sum the 3 yearly values</div><div class="rule"><b>Pharmacy IPR</b><br>Sum 3 years: Patents Published + Patents Granted (separately)</div><div class="rule"><b>Management / Overall EDP-MDP</b><br>Sum 3 years: Programs, Participants, Annual Earnings</div></div>
+<button id="go" disabled>Process PDFs & Generate One Excel File</button><p id="status"></p></div>
+<div class="card"><h3>Validation</h3><p>All uploaded institutions are written into <b>one Excel workbook</b>, one institution per row. Numeric calculated cells contain only the Excel calculation formula for easy verification. No extra comments or proof sheet are added. Program durations are detected dynamically from the PDF and matched to the corresponding program headings in your template, including PG Integrated. Pharmacy IPR and Management/Overall EDP-MDP columns are also supported.</p></div>
+</main>
+<script>
+const x=document.getElementById('xlsx'),p=document.getElementById('pdfs'),b=document.getElementById('go'),drop=document.getElementById('pdfdrop');
+let selectedPDFs=[];
+function keyFor(f){return [f.name,f.size,f.lastModified].join('|')}
+function addFiles(list){for(const f of list){if(f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf')){if(!selectedPDFs.some(e=>keyFor(e)===keyFor(f))){if(selectedPDFs.length>=100){alert('Maximum 100 PDFs can be uploaded in one batch.');break;}selectedPDFs.push(f)}}}render()}
+function render(){document.getElementById('xn').textContent=x.files[0]?.name||'No file selected';document.getElementById('pn').textContent=selectedPDFs.length?(selectedPDFs.length+' PDF(s) selected:\n'+selectedPDFs.map((f,i)=>(i+1)+'. '+f.name).join('\n')):'No files selected';b.disabled=!(x.files.length&&selectedPDFs.length)}
+x.onchange=render;
+p.onchange=()=>{addFiles(p.files);p.value=''};
+document.getElementById('clearPdfs').onclick=()=>{selectedPDFs=[];render()};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',e=>addFiles(e.dataTransfer.files));
+b.onclick=async()=>{b.disabled=true;const st=document.getElementById('status');st.className='';st.textContent='Sending '+selectedPDFs.length+' PDF(s) to backend…';
+const fd=new FormData();fd.append('excel',x.files[0]);for(const f of selectedPDFs)fd.append('pdfs',f,f.name);fd.append('category',document.getElementById('cat').value);
+try{const r=await fetch('/process-batch',{method:'POST',body:fd});if(!r.ok)throw new Error(await r.text());const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);const cat=document.getElementById('cat').value;const count=selectedPDFs.length;const word=count===1?'Entry':'Entries';a.download='Nirf '+cat+' '+count+' '+word+' data.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);st.className='ok';st.textContent='Completed '+selectedPDFs.length+' PDF(s). single Excel workbook downloaded.'}catch(e){st.className='err';st.textContent='Error: '+e.message}finally{render()}}
+render();
+</script></body></html>
