@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: nirf-data-automation
-    runtime: docker
-    healthCheckPath: /health
-    envVars:
-      - key: PORT
-        value: 10000
